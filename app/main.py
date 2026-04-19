@@ -21,7 +21,7 @@ async def classify(
         return {
             "category":"Other",
             "subCategory":"Other",
-            "severity":"Low",
+            "severity":"low",
             "reason":"Parsing Failed!"
             }
 
