@@ -4,7 +4,9 @@ from app.embed_classifier import get_query_embedding, find_best_subcategory_matc
 import json
 import tempfile
 import os
-
+import requests
+import io
+from PIL import Image
 app = FastAPI(title="RailMadad ai endpoint")
 
 # Load category embeddings once at startup
@@ -31,17 +33,23 @@ async def classify_with_llm(
             "reason": "Parsing Failed!"
         }
 
+
 @app.post("/classify")
 async def classify_with_embeddings(
     text: str = Form(...),
-    image: UploadFile = File(None),
+    image_url: str = Form(None),
 ):
     try:
         image_path = None
-        if image:
-            # Save uploaded image to a temporary file
+        if image_url:
+            # Fetch image from URL
+            response = requests.get(image_url, timeout=10)
+            response.raise_for_status()  # Raise error for bad status
+            image = Image.open(io.BytesIO(response.content)).convert("RGB")
+            
+            # Save to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-                temp_file.write(await image.read())
+                image.save(temp_file, format="JPEG")
                 image_path = temp_file.name
 
         # Get query embedding (fuses if image provided)
@@ -54,8 +62,8 @@ async def classify_with_embeddings(
         if image_path and os.path.exists(image_path):
             os.unlink(image_path)
 
-        # Add severity and reason (simple logic for now)
-        severity = "medium"  # Default
+        # Add severity and reason
+        severity = "medium"
         if best_match["score"] > 0.9:
             severity = "high"
         elif best_match["score"] < 0.7:
@@ -77,5 +85,4 @@ async def classify_with_embeddings(
             "severity": "low",
             "reason": "Embedding classification failed!"
         }
-
 
